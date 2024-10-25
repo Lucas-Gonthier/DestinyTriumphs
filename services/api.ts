@@ -52,3 +52,77 @@ export const getTriumphs = async (membershipType: number, destinyMembershipId: s
     throw error
   }
 }
+
+export const getManifest = async () => {
+  const response = await api().get('/Destiny2/Manifest/');
+  const manifestData = response.data.Response.jsonWorldComponentContentPaths;
+
+  console.log('Manifest data:', manifestData); // Ajoutez cette ligne
+
+  if (manifestData.en && manifestData.en['DestinyPresentationNodeDefinition']) {
+    return manifestData.en['DestinyPresentationNodeDefinition'];
+  } else {
+    throw new Error('DestinyPresentationNodeDefinition not found in manifest');
+  }
+};
+
+export const getTriumphCategories = async () => {
+  try {
+    const presentationNodesPath = await getManifest()
+    const response = await axios.get(`https://www.bungie.net${presentationNodesPath}`)
+    
+    const presentationNodes = response.data
+    const recordCategories = Object.values(presentationNodes).filter((node: any) => {
+      return node.parentNodeHashes && node.parentNodeHashes == '1866538467' && node.displayProperties.name.length > 0;
+    });
+
+    console.log('Fetched record categories:', recordCategories);
+
+    return await Promise.all(recordCategories.map(async (node: any) => ({
+      hash: node.hash,
+      name: node.displayProperties.name,
+      description: node.displayProperties.description,
+      subCategories: await getRecordSubCategories(node.hash, presentationNodes) // Changer parentNodeHash en node.hash
+    })));
+  } catch (error) {
+    console.error('Error fetching record categories:', error)
+    throw error
+  }
+}
+
+const getRecordSubCategories = async (parentNodeHash: string, data: any) => {
+  try {
+    const presentationNodes = data
+    const recordCategories = Object.values(presentationNodes).filter((node: any) => {
+      return node.parentNodeHashes && node.parentNodeHashes.includes(parentNodeHash) && node.displayProperties.name.length > 0
+    })
+
+    return await Promise.all(recordCategories.map(async (node: any) => ({
+      hash: node.hash,
+      name: node.displayProperties.name,
+      description: node.displayProperties.description,
+      subSubCategories: await getRecordSubSubCategories(node.hash, data) // Utiliser node.hash
+    })));
+  } catch (error) {
+    console.error('Error fetching record categories:', error)
+    throw error
+  }
+}
+
+const getRecordSubSubCategories = async (parentNodeHash: string, data: any) => {
+  try {
+    const presentationNodes = data
+    const recordCategories = Object.values(presentationNodes).filter((node: any) => {
+      return node.parentNodeHashes && node.parentNodeHashes.includes(parentNodeHash) && node.displayProperties.name.length > 0
+    })
+
+    return recordCategories.map((node: any) => ({
+      hash: node.hash,
+      name: node.displayProperties.name,
+      description: node.displayProperties.description
+    }))
+  } catch (error) {
+    console.error('Error fetching record categories:', error)
+    throw error
+  }
+}
